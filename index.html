@@ -260,7 +260,7 @@
 
   /* LEAFLET */
   .leaflet-container { background:#0d1117 !important; }
-  .leaflet-tile { filter:brightness(0.7) saturate(0.6) hue-rotate(195deg); }
+  .leaflet-tile { filter:brightness(0.85) saturate(0.8); }
   .leaflet-control-zoom { display:none; }
   .storm-pulse { width:40px; height:40px; border-radius:50%; background:rgba(255,59,59,0.2); border:2px solid #ff3b3b; animation:stormPulse 1.5s ease-out infinite; }
   @keyframes stormPulse { 0%{transform:scale(1);opacity:1} 100%{transform:scale(2.5);opacity:0} }
@@ -400,7 +400,8 @@
 <!-- Leaflet at bottom of body so DOM is ready -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+// All functions defined globally so onclick attributes work
+// Init runs after DOM is ready
 
 // ── TABS ──
 function switchTab(tab) {
@@ -413,8 +414,13 @@ function switchTab(tab) {
 function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
 
 // ── MAP ──
-const map = L.map('mapEl', { center:[39.8,-98.5], zoom:5, zoomControl:false });
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OSM', maxZoom:19 }).addTo(map);
+const map = L.map('mapEl', { center:[39.8,-98.5], zoom:5, zoomControl:false, maxZoom:21 });
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap © CARTO',
+  subdomains: 'abcd',
+  maxZoom: 21,
+  maxNativeZoom: 19
+}).addTo(map);
 setTimeout(()=>map.invalidateSize(), 400);
 
 // ── WEATHER RADAR ──
@@ -433,7 +439,6 @@ function toggleWeatherLayer(){
   document.getElementById('radarBtn').classList.toggle('active',radarOn);
   radarOn ? loadRadar() : (radarLayer && map.removeLayer(radarLayer));
 }
-loadRadar();
 setInterval(loadRadar, 300000);
 
 // ── STATE ──
@@ -733,14 +738,14 @@ function showToast(msg,type,dur){
   setTimeout(()=>{el.remove();},dur);
 }
 function updateClock(){document.getElementById('clock').textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
-updateClock(); setInterval(updateClock,1000);
-
-// Keyboard support
-document.getElementById('destination').addEventListener('keydown',function(e){if(e.key==='Enter')getRoute();});
-document.getElementById('mapDest').addEventListener('keydown',function(e){if(e.key==='Enter')startQuickRoute();});
-document.getElementById('origin').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('destination').focus();});
-
-}); // end DOMContentLoaded
+// Auto-init on DOM ready
+document.addEventListener('DOMContentLoaded', function() {
+  loadRadar();
+  updateClock(); setInterval(updateClock, 1000);
+  document.getElementById('destination').addEventListener('keydown', function(e){if(e.key==='Enter') getRoute();});
+  document.getElementById('mapDest').addEventListener('keydown', function(e){if(e.key==='Enter') startQuickRoute();});
+  document.getElementById('origin').addEventListener('keydown', function(e){if(e.key==='Enter') document.getElementById('destination').focus();});
+});
 </script>
 </body>
 </html>
