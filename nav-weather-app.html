@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StormNav — Drive Aware</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #0a0c10;
+    --surface: #111318;
+    --panel: #161a22;
+    --border: #1e2430;
+    --accent: #00e5ff;
+    --accent2: #ff6b35;
+    --warn: #ffcc00;
+    --danger: #ff3b3b;
+    --ok: #00e676;
+    --text: #e8eaf0;
+    --muted: #5a6070;
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'Space Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .app-body {
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    z-index: 1000;
+    flex-shrink: 0;
+  }
+  .logo {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.3rem;
+    letter-spacing: -0.02em;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .logo-icon { font-size: 1.5rem; }
+  .logo span { color: var(--text); }
+  .header-status {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 0.65rem;
+    color: var(--muted);
+  }
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 6px var(--ok);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* MAIN LAYOUT */
+  .app-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  /* LEFT SIDEBAR */
+  .sidebar {
+    width: 340px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .route-panel {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-title {
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .input-group { margin-bottom: 10px; position: relative; }
+  .input-label {
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .location-dot {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+  .dot-start { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  .dot-end { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); }
+
+  input[type="text"] {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    padding: 9px 12px 9px 28px;
+    border-radius: 6px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+  input[type="text"]::placeholder { color: var(--muted); }
+
+  .btn-row { display: flex; gap: 8px; margin-top: 12px; }
+  button {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 14px;
+    transition: all 0.15s;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+    font-weight: 700;
+    flex: 1;
+    letter-spacing: 0.05em;
+  }
+  .btn-primary:hover { background: #33ecff; transform: translateY(-1px); }
+  .btn-secondary {
+    background: var(--panel);
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+
+  /* ROUTE STATS */
+  .route-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .stat-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  .stat-label { font-size: 0.58rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+  .stat-value { font-family: var(--font-display); font-size: 1.1rem; font-weight: 800; color: var(--accent); margin-top: 2px; }
+  .stat-unit { font-size: 0.65rem; color: var(--muted); }
+
+  /* WEATHER PANEL */
+  .weather-panel {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+  }
+  .weather-panel::-webkit-scrollbar { width: 4px; }
+  .weather-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .current-weather {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+  .weather-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .weather-icon { font-size: 2.4rem; }
+  .weather-temp {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--text);
+  }
+  .weather-desc { font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+  .weather-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .wg-item { text-align: center; }
+  .wg-val { font-size: 0.8rem; color: var(--text); font-weight: 700; }
+  .wg-key { font-size: 0.58rem; color: var(--muted); text-transform: uppercase; }
+
+  /* ALERTS */
+  .alerts-section { margin-bottom: 14px; }
+  .alert-card {
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    border-left: 3px solid;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    animation: alertIn 0.3s ease;
+  }
+  @keyframes alertIn { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:none} }
+  .alert-warn { background: rgba(255,204,0,0.08); border-color: var(--warn); }
+  .alert-danger { background: rgba(255,59,59,0.1); border-color: var(--danger); }
+  .alert-ok { background: rgba(0,230,118,0.07); border-color: var(--ok); }
+  .alert-info { background: rgba(0,229,255,0.07); border-color: var(--accent); }
+  .alert-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+  .alert-text { font-size: 0.68rem; color: var(--text); line-height: 1.5; }
+  .alert-title { font-weight: 700; margin-bottom: 2px; font-family: var(--font-display); font-size: 0.75rem; }
+
+  /* FORECAST */
+  .forecast-row {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .forecast-row::-webkit-scrollbar { height: 3px; }
+  .forecast-row::-webkit-scrollbar-thumb { background: var(--border); }
+  .fc-card {
+    flex-shrink: 0;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    text-align: center;
+    min-width: 64px;
+  }
+  .fc-time { font-size: 0.58rem; color: var(--muted); margin-bottom: 4px; }
+  .fc-icon { font-size: 1.2rem; margin-bottom: 2px; }
+  .fc-temp { font-size: 0.75rem; font-weight: 700; }
+  .fc-precip { font-size: 0.58rem; color: #7ecfff; margin-top: 2px; }
+
+  /* NAVIGATION PROGRESS */
+  .nav-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 14px;
+    display: none;
+  }
+  .nav-panel.active { display: block; }
+  .nav-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .nav-status {
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--ok);
+  }
+  .progress-bar {
+    background: var(--border);
+    border-radius: 3px;
+    height: 4px;
+    margin-bottom: 8px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--ok));
+    border-radius: 3px;
+    transition: width 0.5s ease;
+    width: 0%;
+  }
+  .next-turn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg);
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  .turn-arrow { font-size: 1.5rem; }
+  .turn-text { font-size: 0.72rem; color: var(--text); }
+  .turn-dist { font-size: 0.6rem; color: var(--accent); margin-top: 2px; }
+
+  /* MAP */
+  #map {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    inset: 0;
+  }
+
+  /* Loading overlay */
+  .loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(10,12,16,0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 500;
+    display: none;
+  }
+  .loading-overlay.active { display: flex; }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to{transform:rotate(360deg)} }
+
+  /* Weather layer toggle */
+  .map-controls {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 400;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .map-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    padding: 7px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .map-btn:hover, .map-btn.active { border-color: var(--accent); color: var(--accent); }
+
+  /* Storm markers */
+  .storm-pulse {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: rgba(255,59,59,0.2);
+    border: 2px solid var(--danger);
+    animation: stormPulse 1.5s ease-out infinite;
+  }
+  @keyframes stormPulse {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(2.5); opacity: 0; }
+  }
+
+  .toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .toast {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 0.7rem;
+    color: var(--text);
+    max-width: 300px;
+    animation: toastIn 0.3s ease;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .toast.danger { border-left-color: var(--danger); }
+  .toast.warn { border-left-color: var(--warn); }
+  @keyframes toastIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+
+  /* Leaflet override */
+  .leaflet-container { background: #0d1117 !important; }
+  .leaflet-tile { filter: brightness(0.7) saturate(0.6) hue-rotate(195deg); }
+
+  .placeholder-text {
+    color: var(--muted);
+    font-size: 0.7rem;
+    text-align: center;
+    padding: 20px;
+    line-height: 1.8;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <span class="logo-icon">⛈</span>
+    Storm<span>Nav</span>
+  </div>
+  <div class="header-status">
+    <div class="status-dot"></div>
+    <span id="gps-status">ACQUIRING LOCATION...</span>
+    <span id="clock"></span>
+  </div>
+</header>
+
+<div class="app-body">
+  <div class="sidebar">
+    <div class="route-panel">
+      <div class="panel-title">Route Planner</div>
+
+      <div class="input-group">
+        <div class="input-label">Origin</div>
+        <div style="position:relative">
+          <span class="location-dot dot-start" style="top:50%;transform:translateY(-50%);left:10px;position:absolute"></span>
+          <input type="text" id="origin" placeholder="Your location or address..." />
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-label">Destination</div>
+        <div style="position:relative">
+          <span class="location-dot dot-end" style="top:50%;transform:translateY(-50%);left:10px;position:absolute"></span>
+          <input type="text" id="destination" placeholder="Where are you headed?" />
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-primary" id="routeBtn" onclick="getRoute()">GET ROUTE</button>
+        <button class="btn-secondary" onclick="useMyLocation()">📍 ME</button>
+        <button class="btn-secondary" onclick="clearRoute()">✕</button>
+      </div>
+
+      <div class="route-stats" id="routeStats" style="display:none">
+        <div class="stat-card">
+          <div class="stat-label">Distance</div>
+          <div class="stat-value" id="statDist">—</div>
+          <div class="stat-unit">miles</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Est. Time</div>
+          <div class="stat-value" id="statTime">—</div>
+          <div class="stat-unit">minutes</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation Progress -->
+    <div class="nav-panel" id="navPanel">
+      <div class="nav-header">
+        <span class="nav-status">🟢 NAVIGATING</span>
+        <button class="btn-secondary" style="padding:4px 8px;font-size:0.6rem" onclick="stopNav()">STOP</button>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="next-turn" id="nextTurn">
+        <div class="turn-arrow">↑</div>
+        <div>
+          <div class="turn-text" id="turnText">Continue on current route</div>
+          <div class="turn-dist" id="turnDist">Weather check in 2 min</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="weather-panel">
+      <!-- Current Weather -->
+      <div class="panel-title">Current Conditions</div>
+      <div class="current-weather" id="currentWeather">
+        <div class="placeholder-text">Enter a location and tap<br>GET ROUTE to see weather</div>
+      </div>
+
+      <!-- Alerts -->
+      <div id="alertsSection" class="alerts-section"></div>
+
+      <!-- Forecast -->
+      <div id="forecastSection" style="display:none">
+        <div class="panel-title" style="margin-bottom:10px">Hourly Forecast</div>
+        <div class="forecast-row" id="forecastRow"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAP -->
+  <div style="flex:1;position:relative;overflow:hidden;min-height:0">
+    <div id="map"></div>
+    <div class="loading-overlay" id="loadingOverlay">
+      <div style="text-align:center">
+        <div class="spinner"></div>
+        <div style="margin-top:12px;font-size:0.7rem;color:var(--muted)" id="loadingText">Calculating route...</div>
+      </div>
+    </div>
+    <div class="map-controls">
+      <button class="map-btn" id="navStartBtn" onclick="startNavigation()" style="display:none">▶ START NAV</button>
+      <button class="map-btn active" id="weatherLayerBtn" onclick="toggleWeatherLayer()">🌧 PRECIP LAYER</button>
+      <button class="map-btn" onclick="locateMe()">📍 MY LOCATION</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ═══════════════════════════════════════
+// MAP INIT
+// ═══════════════════════════════════════
+const map = L.map('map', {
+  center: [39.8, -98.5],
+  zoom: 5,
+  zoomControl: false
+});
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap',
+  maxZoom: 19
+}).addTo(map);
+
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+// Rain Viewer weather radar layer
+let weatherLayerActive = true;
+let weatherLayer = null;
+
+async function loadWeatherLayer() {
+  try {
+    const res = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+    const data = await res.json();
+    const frames = data.radar.past;
+    const latest = frames[frames.length - 1];
+    if (weatherLayer) map.removeLayer(weatherLayer);
+    if (weatherLayerActive) {
+      weatherLayer = L.tileLayer(
+        `https://tilecache.rainviewer.com${latest.path}/256/{z}/{x}/{y}/2/1_1.png`,
+        { opacity: 0.6, zIndex: 200 }
+      ).addTo(map);
+    }
+  } catch(e) { console.log('Weather layer unavailable'); }
+}
+
+function toggleWeatherLayer() {
+  weatherLayerActive = !weatherLayerActive;
+  const btn = document.getElementById('weatherLayerBtn');
+  if (weatherLayerActive) {
+    btn.classList.add('active');
+    loadWeatherLayer();
+  } else {
+    btn.classList.remove('active');
+    if (weatherLayer) map.removeLayer(weatherLayer);
+  }
+}
+
+loadWeatherLayer();
+setInterval(loadWeatherLayer, 5 * 60 * 1000);
+
+// Force Leaflet to recalculate map size after layout settles
+setTimeout(() => map.invalidateSize(), 100);
+
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+let userLat = null, userLng = null;
+let routeLayer = null;
+let startMarker = null, endMarker = null;
+let routeCoords = [];
+let navMode = false;
+let navSimInterval = null;
+let navStep = 0;
+let weatherRefreshInterval = null;
+
+// ═══════════════════════════════════════
+// GEOLOCATION
+// ═══════════════════════════════════════
+function locateMe() {
+  navigator.geolocation.getCurrentPosition(pos => {
+    userLat = pos.coords.latitude;
+    userLng = pos.coords.longitude;
+    map.setView([userLat, userLng], 13);
+    document.getElementById('gps-status').textContent = 'GPS ACTIVE';
+    showToast('📍 Location found!', 'info', 2000);
+    fetchWeather(userLat, userLng);
+  }, () => {
+    showToast('Could not get GPS location', 'warn', 3000);
+  });
+}
+
+function useMyLocation() {
+  navigator.geolocation.getCurrentPosition(pos => {
+    userLat = pos.coords.latitude;
+    userLng = pos.coords.longitude;
+    document.getElementById('origin').value = `${userLat.toFixed(4)}, ${userLng.toFixed(4)}`;
+    showToast('📍 Using your location', 'info', 2000);
+  }, () => {
+    showToast('GPS unavailable — enter address manually', 'warn', 3000);
+  });
+}
+
+navigator.geolocation.getCurrentPosition(pos => {
+  userLat = pos.coords.latitude;
+  userLng = pos.coords.longitude;
+  map.setView([userLat, userLng], 11);
+  document.getElementById('gps-status').textContent = 'GPS ACTIVE';
+  fetchWeather(userLat, userLng);
+}, () => {
+  document.getElementById('gps-status').textContent = 'GPS UNAVAILABLE';
+});
+
+// ═══════════════════════════════════════
+// GEOCODING (Nominatim)
+// ═══════════════════════════════════════
+async function geocode(query) {
+  // Check if it's already lat,lng
+  const ll = query.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
+  if (ll) return { lat: parseFloat(ll[1]), lng: parseFloat(ll[2]), name: query };
+
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`;
+  const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+  const data = await res.json();
+  if (!data.length) throw new Error('Location not found: ' + query);
+  return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), name: data[0].display_name };
+}
+
+// ═══════════════════════════════════════
+// ROUTING (OSRM - free, no key needed)
+// ═══════════════════════════════════════
+async function getRoute() {
+  const originVal = document.getElementById('origin').value.trim();
+  const destVal = document.getElementById('destination').value.trim();
+  if (!originVal || !destVal) {
+    showToast('Please enter both origin and destination', 'warn', 3000);
+    return;
+  }
+
+  showLoading('Geocoding locations...');
+  try {
+    const [start, end] = await Promise.all([geocode(originVal), geocode(destVal)]);
+
+    setLoading('Calculating route...');
+    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson&steps=true`;
+    const res = await fetch(osrmUrl);
+    const data = await res.json();
+
+    if (data.code !== 'Ok') throw new Error('Routing failed');
+
+    const route = data.routes[0];
+    const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+    routeCoords = coords;
+
+    // Draw route
+    if (routeLayer) map.removeLayer(routeLayer);
+    routeLayer = L.polyline(coords, {
+      color: '#00e5ff',
+      weight: 4,
+      opacity: 0.85,
+      lineJoin: 'round'
+    }).addTo(map);
+
+    // Glow effect
+    L.polyline(coords, {
+      color: '#00e5ff',
+      weight: 10,
+      opacity: 0.15,
+    }).addTo(map);
+
+    map.fitBounds(routeLayer.getBounds(), { padding: [40, 40] });
+
+    // Markers
+    if (startMarker) map.removeLayer(startMarker);
+    if (endMarker) map.removeLayer(endMarker);
+
+    startMarker = L.circleMarker([start.lat, start.lng], {
+      radius: 8, color: '#00e676', fillColor: '#00e676', fillOpacity: 1, weight: 2
+    }).addTo(map).bindPopup(`<b>Start</b><br>${start.name.split(',')[0]}`);
+
+    endMarker = L.circleMarker([end.lat, end.lng], {
+      radius: 8, color: '#ff6b35', fillColor: '#ff6b35', fillOpacity: 1, weight: 2
+    }).addTo(map).bindPopup(`<b>Destination</b><br>${end.name.split(',')[0]}`);
+
+    // Stats
+    const distMi = (route.distance * 0.000621371).toFixed(1);
+    const timeMin = Math.round(route.duration / 60);
+    document.getElementById('statDist').textContent = distMi;
+    document.getElementById('statTime').textContent = timeMin;
+    document.getElementById('routeStats').style.display = 'grid';
+    document.getElementById('navStartBtn').style.display = 'block';
+
+    // Fetch weather at origin and along route
+    setLoading('Loading weather data...');
+    await fetchWeather(start.lat, start.lng);
+    await checkRouteWeather(coords, end);
+
+    hideLoading();
+    showToast(`Route found: ${distMi} mi · ~${timeMin} min`, 'info', 4000);
+
+  } catch(e) {
+    hideLoading();
+    showToast('Error: ' + e.message, 'danger', 5000);
+  }
+}
+
+// ═══════════════════════════════════════
+// WEATHER (Open-Meteo - completely free)
+// ═══════════════════════════════════════
+function wmoCode(code) {
+  const map = {
+    0: ['☀️','Clear'], 1: ['🌤','Mainly Clear'], 2: ['⛅','Partly Cloudy'],
+    3: ['☁️','Overcast'], 45: ['🌫','Foggy'], 48: ['🌫','Icy Fog'],
+    51: ['🌦','Light Drizzle'], 53: ['🌦','Drizzle'], 55: ['🌧','Heavy Drizzle'],
+    61: ['🌧','Light Rain'], 63: ['🌧','Rain'], 65: ['🌧','Heavy Rain'],
+    71: ['🌨','Light Snow'], 73: ['❄️','Snow'], 75: ['❄️','Heavy Snow'],
+    77: ['🌨','Snow Grains'], 80: ['🌦','Light Showers'], 81: ['🌧','Showers'],
+    82: ['⛈','Heavy Showers'], 85: ['🌨','Snow Showers'], 86: ['🌨','Heavy Snow Showers'],
+    95: ['⛈','Thunderstorm'], 96: ['⛈','Thunderstorm + Hail'], 99: ['⛈','Heavy Thunderstorm']
+  };
+  return map[code] || ['🌡','Unknown'];
+}
+
+async function fetchWeather(lat, lng) {
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,visibility&hourly=temperature_2m,precipitation_probability,weather_code,precipitation&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=1`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const cur = data.current;
+    const [icon, desc] = wmoCode(cur.weather_code);
+
+    // Render current weather
+    document.getElementById('currentWeather').innerHTML = `
+      <div class="weather-main">
+        <div>
+          <div class="weather-temp">${Math.round(cur.temperature_2m)}°F</div>
+          <div class="weather-desc">${desc} · Feels ${Math.round(cur.apparent_temperature)}°F</div>
+        </div>
+        <div class="weather-icon">${icon}</div>
+      </div>
+      <div class="weather-grid">
+        <div class="wg-item"><div class="wg-val">${cur.wind_speed_10m} mph</div><div class="wg-key">Wind</div></div>
+        <div class="wg-item"><div class="wg-val">${cur.wind_gusts_10m} mph</div><div class="wg-key">Gusts</div></div>
+        <div class="wg-item"><div class="wg-val">${cur.precipitation}"</div><div class="wg-key">Precip</div></div>
+      </div>
+    `;
+
+    // Hourly forecast (next 8 hours)
+    const now = new Date();
+    const hourlySection = document.getElementById('forecastSection');
+    const forecastRow = document.getElementById('forecastRow');
+    forecastRow.innerHTML = '';
+    hourlySection.style.display = 'block';
+
+    const times = data.hourly.time;
+    const hTemps = data.hourly.temperature_2m;
+    const hCodes = data.hourly.weather_code;
+    const hPrec = data.hourly.precipitation_probability;
+
+    let count = 0;
+    for (let i = 0; i < times.length && count < 8; i++) {
+      const t = new Date(times[i]);
+      if (t < now) continue;
+      const [hIcon] = wmoCode(hCodes[i]);
+      const hr = t.getHours();
+      const label = hr === 0 ? '12am' : hr < 12 ? `${hr}am` : hr === 12 ? '12pm' : `${hr-12}pm`;
+      forecastRow.innerHTML += `
+        <div class="fc-card">
+          <div class="fc-time">${label}</div>
+          <div class="fc-icon">${hIcon}</div>
+          <div class="fc-temp">${Math.round(hTemps[i])}°</div>
+          <div class="fc-precip">${hPrec[i]}%💧</div>
+        </div>
+      `;
+      count++;
+    }
+
+    // Check for alerts
+    generateWeatherAlerts(cur, data.hourly, now);
+
+  } catch(e) {
+    document.getElementById('currentWeather').innerHTML = `<div class="placeholder-text">Weather data unavailable</div>`;
+  }
+}
+
+function generateWeatherAlerts(cur, hourly, now) {
+  const alerts = [];
+  const code = cur.weather_code;
+
+  if (code === 95 || code === 96 || code === 99) {
+    alerts.push({ type: 'danger', icon: '⛈', title: 'ACTIVE THUNDERSTORM', text: 'Severe thunderstorm at your current location. Consider delaying travel.' });
+  } else if (code >= 80) {
+    alerts.push({ type: 'warn', icon: '🌧', title: 'RAIN SHOWERS', text: 'Heavy showers in your area. Reduce speed and increase following distance.' });
+  }
+
+  if (cur.wind_gusts_10m > 45) {
+    alerts.push({ type: 'danger', icon: '💨', title: 'HIGH WIND WARNING', text: `Gusts up to ${cur.wind_gusts_10m} mph. Dangerous for high-profile vehicles.` });
+  } else if (cur.wind_speed_10m > 30) {
+    alerts.push({ type: 'warn', icon: '💨', title: 'STRONG WINDS', text: `Wind speeds at ${cur.wind_speed_10m} mph. Drive carefully on exposed highways.` });
+  }
+
+  if (cur.visibility && cur.visibility < 1000) {
+    alerts.push({ type: 'danger', icon: '🌫', title: 'LOW VISIBILITY', text: `Visibility under 1km. Use fog lights and reduce speed significantly.` });
+  }
+
+  // Check approaching storms in next 3 hours
+  const times = hourly.time;
+  for (let i = 0; i < times.length; i++) {
+    const t = new Date(times[i]);
+    const diff = (t - now) / 3600000;
+    if (diff > 0 && diff <= 3) {
+      const hCode = hourly.weather_code[i];
+      if ((hCode === 95 || hCode >= 96) && code < 95) {
+        alerts.push({ type: 'warn', icon: '⚡', title: 'STORM APPROACHING', text: `Thunderstorms forecast in ~${Math.round(diff * 60)} minutes. Plan accordingly.` });
+        break;
+      }
+    }
+  }
+
+  if (alerts.length === 0) {
+    alerts.push({ type: 'ok', icon: '✓', title: 'CONDITIONS CLEAR', text: 'No significant weather hazards detected along your route.' });
+  }
+
+  const section = document.getElementById('alertsSection');
+  section.innerHTML = alerts.map(a => `
+    <div class="alert-card alert-${a.type}">
+      <div class="alert-icon">${a.icon}</div>
+      <div class="alert-text">
+        <div class="alert-title">${a.title}</div>
+        ${a.text}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function checkRouteWeather(coords, dest) {
+  // Sample ~5 points along the route
+  const samples = 5;
+  const step = Math.floor(coords.length / samples);
+  const points = [];
+  for (let i = 0; i < samples; i++) {
+    const idx = Math.min(i * step, coords.length - 1);
+    points.push(coords[idx]);
+  }
+  points.push([dest.lat, dest.lng]);
+
+  let stormCount = 0;
+  for (const [lat, lng] of points) {
+    try {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=weather_code,precipitation&temperature_unit=fahrenheit&timezone=auto`;
+      const res = await fetch(url);
+      const data = await res.json();
+      const code = data.current.weather_code;
+      if (code >= 80) stormCount++;
+      if (code >= 95) {
+        const stormDiv = document.createElement('div');
+        stormDiv.className = 'storm-pulse';
+        const icon = L.divIcon({ className: '', html: stormDiv.outerHTML, iconSize: [40, 40] });
+        L.marker([lat, lng], { icon }).addTo(map);
+      }
+    } catch(e) {}
+  }
+
+  if (stormCount >= 2) {
+    showToast('⛈ Multiple storm cells detected along your route!', 'danger', 8000);
+  } else if (stormCount === 1) {
+    showToast('⚡ Weather hazard detected on route — check alerts', 'warn', 6000);
+  }
+}
+
+// ═══════════════════════════════════════
+// NAVIGATION SIMULATION
+// ═══════════════════════════════════════
+const turnMessages = [
+  { arrow: '↑', text: 'Continue straight on current road' },
+  { arrow: '↗', text: 'Keep right at the fork' },
+  { arrow: '→', text: 'Turn right at the intersection' },
+  { arrow: '↑', text: 'Merge onto the highway' },
+  { arrow: '↖', text: 'Keep left, then take ramp' },
+  { arrow: '←', text: 'Turn left onto main street' },
+  { arrow: '↑', text: 'You have arrived at your destination' },
+];
+
+function startNavigation() {
+  if (!routeCoords.length) return;
+  navMode = true;
+  navStep = 0;
+  document.getElementById('navPanel').classList.add('active');
+  document.getElementById('navStartBtn').style.display = 'none';
+  updateNavStep();
+
+  // Refresh weather every 3 mins during nav
+  weatherRefreshInterval = setInterval(() => {
+    const progress = navStep / Math.max(turnMessages.length - 1, 1);
+    const idx = Math.min(Math.floor(progress * (routeCoords.length - 1)), routeCoords.length - 1);
+    const [lat, lng] = routeCoords[idx];
+    fetchWeather(lat, lng);
+    showToast('🌡 Weather updated along route', 'info', 2500);
+  }, 180000);
+
+  // Simulate progress
+  navSimInterval = setInterval(() => {
+    navStep++;
+    if (navStep >= turnMessages.length) {
+      stopNav();
+      showToast('🏁 You have arrived!', 'ok', 5000);
+      return;
+    }
+    updateNavStep();
+    const progress = navStep / (turnMessages.length - 1);
+    document.getElementById('progressFill').style.width = (progress * 100) + '%';
+  }, 15000);
+}
+
+function updateNavStep() {
+  const t = turnMessages[Math.min(navStep, turnMessages.length - 1)];
+  document.getElementById('turnText').textContent = t.text;
+  document.getElementById('turnArrow').textContent = t.arrow;
+  const mins = (turnMessages.length - navStep - 1) * 2;
+  document.getElementById('turnDist').textContent = mins > 0 ? `~${mins} min remaining · Weather live` : 'Arriving soon';
+}
+
+function stopNav() {
+  navMode = false;
+  clearInterval(navSimInterval);
+  clearInterval(weatherRefreshInterval);
+  document.getElementById('navPanel').classList.remove('active');
+  document.getElementById('navStartBtn').style.display = 'block';
+  document.getElementById('progressFill').style.width = '0%';
+}
+
+// Fix: make turnArrow addressable
+document.getElementById('navPanel').innerHTML = document.getElementById('navPanel').innerHTML.replace(
+  'class="turn-arrow"', 'class="turn-arrow" id="turnArrow"'
+);
+
+// ═══════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════
+function clearRoute() {
+  if (routeLayer) map.removeLayer(routeLayer);
+  if (startMarker) map.removeLayer(startMarker);
+  if (endMarker) map.removeLayer(endMarker);
+  routeCoords = [];
+  routeLayer = null;
+  document.getElementById('routeStats').style.display = 'none';
+  document.getElementById('navStartBtn').style.display = 'none';
+  stopNav();
+}
+
+function showLoading(text) {
+  document.getElementById('loadingOverlay').classList.add('active');
+  document.getElementById('loadingText').textContent = text || 'Loading...';
+}
+function setLoading(text) {
+  document.getElementById('loadingText').textContent = text;
+}
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('active');
+}
+
+function showToast(msg, type = 'info', duration = 4000) {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.style.opacity = '0', duration - 400);
+  setTimeout(() => t.remove(), duration);
+}
+
+// Clock
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// Enter key support
+document.getElementById('destination').addEventListener('keydown', e => {
+  if (e.key === 'Enter') getRoute();
+});
+document.getElementById('origin').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('destination').focus();
+});
+</script>
+</body>
+</html>
